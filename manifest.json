@@ -1,0 +1,15 @@
+{
+  "name": "Power Fit",
+  "short_name": "Power Fit",
+  "description": "Διαχείριση μελών, πακέτων και ραντεβού για το studio Power Fit",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F7F6F2",
+  "theme_color": "#23604F",
+  "lang": "el",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
