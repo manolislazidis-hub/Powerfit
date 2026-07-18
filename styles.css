@@ -393,6 +393,23 @@ input:focus, select:focus, textarea:focus, .btn:focus-visible, .tab:focus-visibl
 
 .slot-time { font-size: 14px; font-weight: 600; color: var(--muted); }
 
+/* Κεφαλιδα ζωνης: ωρα + ειδος μαθηματος */
+.slot-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+
+/* Ετικετα ειδους μαθηματος */
+.class-tag {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+.class-tag.pilates { color: var(--brand); border-color: var(--brand); }
+.class-tag.weights { color: var(--absence); border-color: var(--absence); }
+
 .seats { display: grid; gap: 6px; }
 
 /* Θεση: γεματη (ραντεβου) η ελευθερη (+ Κρατηση) */
@@ -467,6 +484,52 @@ input:focus, select:focus, textarea:focus, .btn:focus-visible, .tab:focus-visibl
 .wg-slot.full .mono { color: #fff; font-weight: 700; }
 
 .wg-off { background: transparent; }
+
+/* Πλεγμα μηνα: 7 στηλες ημερων */
+.month-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+}
+
+.mg-cell { border-radius: 8px; }
+
+.mg-head {
+  display: grid;
+  place-items: center;
+  min-height: 24px;
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.mg-day {
+  display: grid;
+  gap: 0;
+  justify-items: center;
+  align-content: center;
+  min-height: 48px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  cursor: pointer;
+  font-family: inherit;
+}
+.mg-num { font-size: 14px; font-weight: 700; color: var(--ink); }
+.mg-count { font-size: 10px; color: var(--brand); min-height: 12px; }
+
+/* Ημερες εκτος τρεχοντος μηνα: αχνες */
+.mg-day.other { opacity: 0.35; }
+
+/* Πληροτητα ημερας */
+.mg-day.part { border-color: var(--brand); }
+.mg-day.full { background: var(--brand); border-color: var(--brand); }
+.mg-day.full .mg-num, .mg-day.full .mg-count { color: #fff; }
+
+/* Σημερινη ημερα */
+.mg-day.today { outline: 2px solid var(--brand); outline-offset: -2px; }
+.mg-day.today .mg-num { color: var(--brand); }
+.mg-day.full.today .mg-num { color: #fff; }
 
 /* ---- Toasts ---- */
 
@@ -549,3 +612,89 @@ input:focus, select:focus, textarea:focus, .btn:focus-visible, .tab:focus-visibl
 .icon-btn.brand { color: var(--brand); font-weight: 700; }
 
 .btn.danger-solid { background: var(--bad); color: #fff; }
+
+/* ---- Μηνιαιος ισολογισμος ---- */
+
+.brand { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+
+.bal-row {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.bal-month {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.bal-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.bal-stat { display: grid; gap: 2px; justify-items: center; text-align: center; }
+.bal-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ---- Επιλογεας πακετου (tier + συνεδριες + τιμη) ---- */
+
+/* Tabs τυπου πακετου */
+.seg {
+  display: flex;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.seg-btn {
+  flex: 1;
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+  padding: 10px 0;
+  border: none;
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+  min-height: 44px;
+}
+.seg-btn.active { background: var(--brand); color: #fff; }
+
+/* Πλεγμα συνεδριων 1-16 (δυο σειρες των 8) */
+.sess-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 4px;
+}
+
+.sess-btn {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 600;
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+}
+.sess-btn.active { background: var(--brand); border-color: var(--brand); color: #fff; }
+
+/* Ενδειξη τιμης: "130 € (16,25 €/μάθημα)" */
+.price-line {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--brand);
+  text-align: center;
+  padding: 2px 0;
+}
