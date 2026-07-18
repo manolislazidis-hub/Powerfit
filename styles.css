@@ -60,6 +60,32 @@ body {
   color: var(--brand);
 }
 
+/* Δεξι τμημα κεφαλιδας: ενδειξη sync + κουμπι backup */
+.topbar-right { display: flex; align-items: center; gap: 10px; }
+
+/* Ενδειξη κατασταστης συγχρονισμου: διακριτικη, μονο πληροφορια */
+.sync-status { font-size: 11px; color: var(--muted); }
+.sync-status.ok  { color: var(--ok); }
+.sync-status.off { color: var(--low); }
+
+/* Banner νεας εκδοσης: μπαρα πανω απο την κεφαλιδα */
+#update-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: calc(8px + env(safe-area-inset-top)) 16px 8px;
+  background: var(--brand);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+}
+#update-banner[hidden] { display: none; }
+#update-banner .btn {
+  background: #fff;
+  color: var(--brand);
+}
+
 h1 {
   font-family: var(--font-display);
   font-size: 28px;
