@@ -506,6 +506,7 @@
     const { act, id } = btn.dataset;
     switch (act) {
       case 'close-sheet': closeSheet(); break;
+      case 'apply-update': applyUpdate(); break;
       case 'backup': backupSheet(); break;
       case 'export': doExport(); break;
       case 'edit-member': memberForm(state.members.find(m => m.id === id)); break;
@@ -539,16 +540,102 @@
   document.querySelectorAll('.tab').forEach(t =>
     t.addEventListener('click', () => { state.view = t.dataset.view; render(); }));
 
+  /* ---- Συγχρονισμος με ενδειξη κατασταστης ---- */
+
+  /* Ελαχιστο διαστημα μεταξυ pulls στο visibilitychange, ωστε το γρηγορο
+     εναλλαξ εφαρμογων να μην πυροβολει συνεχομενα αιτηματα */
+  const SYNC_MIN_INTERVAL_MS = 60000;
+  let lastSyncAttempt = 0;
+
+  /* Ενημερωση της μικρης ενδειξης στην κεφαλιδα */
+  function setSyncStatus(text, cls) {
+    const el = $('#sync-status');
+    el.hidden = !text;
+    el.textContent = text || '';
+    el.className = 'sync-status mono' + (cls ? ' ' + cls : '');
+  }
+
+  /* Pull απο τον server και επανασχεδιαση. force=true αγνοει το throttle
+     (χρηση στην εκκινηση). Δεν κανει τιποτα αν ο συγχρονισμος ειναι ανενεργος. */
+  async function syncNow(force) {
+    if (!Store.SYNC.enabled) return;
+    const now = Date.now();
+    if (!force && now - lastSyncAttempt < SYNC_MIN_INTERVAL_MS) return;
+    lastSyncAttempt = now;
+    setSyncStatus('Συγχρονισμός…');
+    const ok = await Store.syncPull();
+    if (ok) {
+      const d = new Date();
+      const pad = n => String(n).padStart(2, '0');
+      setSyncStatus(`Συγχρ. ${pad(d.getHours())}:${pad(d.getMinutes())}`, 'ok');
+      await refresh();
+    } else {
+      /* Αποτυχια (π.χ. offline): η εφαρμογη συνεχιζει με τα τοπικα δεδομενα */
+      setSyncStatus('Χωρίς σύνδεση', 'off');
+    }
+  }
+
+  /* ---- Ανιχνευση νεας εκδοσης (service worker updates) ---- */
+
+  let swReg = null;          /* το registration, για ελεγχους ενημερωσης */
+  let waitingWorker = null;  /* ο νεος worker που περιμενει ενεργοποιηση */
+  let reloading = false;     /* προστασια απο διπλο reload */
+
+  function showUpdateBanner(worker) {
+    waitingWorker = worker;
+    $('#update-banner').hidden = false;
+  }
+
+  /* Ο χρηστης πατησε "Ανανεωση": ο νεος worker ενεργοποιειται και
+     στο controllerchange η σελιδα ξαναφορτωνει με τα νεα αρχεια */
+  function applyUpdate() {
+    if (waitingWorker) waitingWorker.postMessage('SKIP_WAITING');
+  }
+
+  async function registerServiceWorker() {
+    if (!('serviceWorker' in navigator)) return;
+    try {
+      swReg = await navigator.serviceWorker.register('sw.js');
+    } catch {
+      return;
+    }
+    /* Νεα εκδοση ηδη σε αναμονη (π.χ. απο προηγουμενο ανοιγμα) */
+    if (swReg.waiting && navigator.serviceWorker.controller) {
+      showUpdateBanner(swReg.waiting);
+    }
+    /* Νεα εκδοση εντοπιστηκε τωρα: περιμενε να ολοκληρωθει το κατεβασμα */
+    swReg.addEventListener('updatefound', () => {
+      const nw = swReg.installing;
+      if (!nw) return;
+      nw.addEventListener('statechange', () => {
+        /* controller υπαρχει = δεν ειναι η πρωτη εγκατασταση, αρα ειναι update */
+        if (nw.state === 'installed' && navigator.serviceWorker.controller) {
+          showUpdateBanner(nw);
+        }
+      });
+    });
+    /* Μολις αναλαβει ο νεος worker, φορτωσε τη νεα εκδοση */
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (reloading) return;
+      reloading = true;
+      location.reload();
+    });
+  }
+
+  /* Επαναφορα στο προσκηνιο: ελεγχος για νεα εκδοση + pull δεδομενων */
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    if (swReg) swReg.update().catch(() => {});
+    syncNow(false);
+  });
+
   /* ---- Εκκινηση ---- */
   async function boot() {
     await Store.init();
-    /* Συγχρονισμος στο ανοιγμα (αν ειναι ενεργος), μετα φορτωμα και σχεδιαση */
-    await Store.syncPull();
+    /* Πρωτα τα τοπικα δεδομενα στην οθονη, μετα συγχρονισμος στο παρασκηνιο */
     await refresh();
-    /* Καταχωρηση service worker για offline λειτουργια */
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js').catch(() => {});
-    }
+    registerServiceWorker();
+    syncNow(true);
   }
 
   boot();
