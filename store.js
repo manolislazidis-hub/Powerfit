@@ -11,8 +11,8 @@ const Store = (() => {
      Δες README.md για τη δημιουργια του project και το SQL των πινακων. */
   const SYNC = {
     enabled: true,
-    url: 'https://pywbgbzkofoofbjeruac.supabase.co',   /* placeholder */
-    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB5d2JnYnprb2Zvb2ZiamVydWFjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzNjA4NzksImV4cCI6MjA5OTkzNjg3OX0.4Fmsux3mFvWvUou7u8LO45ej3LSojRSfF6GEqtVgeRk'                   /* placeholder */
+    url: 'https://pywbgbzkofoofbjeruac.supabase.co',
+    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB5d2JnYnprb2Zvb2ZiamVydWFjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzNjA4NzksImV4cCI6MjA5OTkzNjg3OX0.4Fmsux3mFvWvUou7u8LO45ej3LSojRSfF6GEqtVgeRk'
   };
 
   const DB_NAME = 'powerfit';
@@ -49,8 +49,15 @@ const Store = (() => {
 
   /* ---- Βασικες πραξεις CRUD ---- */
 
-  /* Ολες οι εγγραφες ενος store */
-  function getAll(storeName) {
+  /* Ολες οι εγγραφες ενος store, ΧΩΡΙΣ τις διαγραμμενες (tombstones).
+     Αυτη χρησιμοποιει το UI. */
+  async function getAll(storeName) {
+    const all = await getAllRaw(storeName);
+    return all.filter(r => !r.deleted);
+  }
+
+  /* Ολες οι εγγραφες μαζι με τα tombstones (χρηση απο sync και export) */
+  function getAllRaw(storeName) {
     const tx = db.transaction(storeName, 'readonly');
     return promisify(tx.objectStore(storeName).getAll());
   }
@@ -76,11 +83,13 @@ const Store = (() => {
     return promisify(tx.objectStore(storeName).put(record));
   }
 
-  /* Διαγραφη εγγραφης τοπικα και απομακρυσμενα */
+  /* Διαγραφη ως tombstone (soft delete): η εγγραφη μαρκαρεται deleted
+     αντι να σβηστει, ωστε η διαγραφη να συγχρονιζεται σωστα ως αλλαγη
+     (last-write-wins) και να μην "αναστηνεται" απο αλλες συσκευες. */
   async function remove(storeName, id) {
-    const tx = db.transaction(storeName, 'readwrite');
-    await promisify(tx.objectStore(storeName).delete(id));
-    pushDelete(storeName, id); /* fire-and-forget */
+    const record = await get(storeName, id);
+    if (!record) return;
+    await put(storeName, { ...record, deleted: true });
   }
 
   /* Αδειασμα ολων των stores (χρηση απο import) */
@@ -99,10 +108,11 @@ const Store = (() => {
 
   /* ---- Export / Import ---- */
 
-  /* Ολα τα δεδομενα σε ενα αντικειμενο για backup */
+  /* Ολα τα δεδομενα σε ενα αντικειμενο για backup.
+     Περιλαμβανει και τα tombstones, ωστε ενα import να μην αναστησει διαγραφες. */
   async function exportAll() {
     const data = {};
-    for (const name of STORES) data[name] = await getAll(name);
+    for (const name of STORES) data[name] = await getAllRaw(name);
     return data;
   }
 
@@ -142,21 +152,10 @@ const Store = (() => {
     }
   }
 
-  /* Διαγραφη εγγραφης απομακρυσμενα */
-  async function pushDelete(storeName, id) {
-    if (!SYNC.enabled) return;
-    try {
-      await fetch(`${SYNC.url}/rest/v1/${storeName}?id=eq.${id}`, {
-        method: 'DELETE',
-        headers: syncHeaders()
-      });
-    } catch (e) {
-      console.warn('Sync delete failed:', e);
-    }
-  }
-
   /* Pull ολων στο ανοιγμα της εφαρμογης.
-     Επιλυση συγκρουσεων last-write-wins με βαση το updatedAt:
+     Δουλευει πανω σε ΟΛΕΣ τις εγγραφες, μαζι με τα tombstones: μια διαγραφη
+     ειναι απλως μια νεοτερη εκδοση της εγγραφης με deleted=true, οποτε
+     το last-write-wins τη διαδιδει σωστα προς ολες τις συσκευες.
      - remote νεοτερο η αγνωστο τοπικα -> γραφεται τοπικα
      - local νεοτερο η αγνωστο απομακρυσμενα -> γινεται push
      Επιστρεφει true αν ολοκληρωθηκε, false αν απετυχε (π.χ. offline). */
@@ -169,7 +168,7 @@ const Store = (() => {
         });
         if (!res.ok) throw new Error(`HTTP ${res.status} for ${name}`);
         const remote = await res.json();
-        const local = await getAll(name);
+        const local = await getAllRaw(name);
         const localById = new Map(local.map(r => [r.id, r]));
         const remoteById = new Map(remote.map(r => [r.id, r]));
 
