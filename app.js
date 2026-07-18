@@ -1,4 +1,4 @@
-/* app.js - Στρωμα παρουσιασης. Rendering, events, φορμες.
+  /* app.js - Στρωμα παρουσιασης. Rendering, events, φορμες.
    Χρησιμοποιει το Logic για κανονες και το Store για δεδομενα. */
 
 'use strict';
