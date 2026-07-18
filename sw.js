@@ -2,7 +2,7 @@
    να ανοιγει και offline. Στρατηγικη: cache-first για τα αρχεια του shell.
    Σε καθε αλλαγη αρχειων: αυξησε το CACHE_NAME για να ανανεωθει το cache. */
 
-const CACHE_NAME = 'powerfit-v5';
+const CACHE_NAME = 'powerfit-v6';
 
 /* Ολα τα αρχεια του app shell */
 const SHELL = [
