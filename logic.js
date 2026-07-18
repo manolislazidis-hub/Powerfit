@@ -23,6 +23,33 @@ const Logic = (() => {
     'x8': '8 φορές'
   };
 
+  /* Ειδη μαθηματος ανα ραντεβου. Προεπιλογη: pilates.
+     Παλιες εγγραφες χωρις classType αντιμετωπιζονται ως pilates. */
+  const CLASS_TYPES = {
+    pilates: 'Pilates',
+    weights: 'Βάρη'
+  };
+
+  /* Ετικετα ειδους μαθηματος με ασφαλη προεπιλογη */
+  function classLabel(classType) {
+    return CLASS_TYPES[classType] || CLASS_TYPES.pilates;
+  }
+
+  /* ---- Τιμοκαταλογος πακετων (modular) ----
+     Εγκεκριμενες τιμες ανα tier και αριθμο συνεδριων (1-16).
+     Δεικτης πινακα = αριθμος συνεδριων (η θεση 0 δεν χρησιμοποιειται).
+     ΟΛΕΣ οι αλλαγες τιμων γινονται ΜΟΝΟ εδω. */
+  const PRICE_TABLE = {
+    Classic: [null, 20, 40, 60, 80, 95, 110, 120, 130, 145, 160, 175, 195, 210, 225, 240, 255],
+    Golden:  [null, 15, 30, 45, 60, 70, 80, 90, 100, 110, 125, 135, 150, 160, 170, 180, 190]
+  };
+
+  /* Τιμη πακετου απο τον καταλογο. Επιστρεφει null αν δεν υπαρχει συνδυασμος. */
+  function packagePrice(tier, sessions) {
+    const table = PRICE_TABLE[tier];
+    return (table && table[sessions] != null) ? table[sessions] : null;
+  }
+
   /* Καταστασεις ραντεβου που καταναλωνουν συνεδρια */
   const CONSUMING_STATUSES = ['present', 'charged_absence'];
 
@@ -183,6 +210,31 @@ const Logic = (() => {
     };
   }
 
+  /* Μηνιαιος ισολογισμος για ολους τους μηνες με δραστηριοτητα,
+     απο τον πιο προσφατο προς τον παλαιοτερο. Ανα μηνα:
+     - revenue: εσοδα απο πληρωμενα πακετα με εναρξη στον μηνα
+     - outstanding: απληρωτα πακετα με εναρξη στον μηνα
+     - packagesSold: πληθος πακετων του μηνα
+     - attendance: καταναλωμενες συνεδριες του μηνα */
+  function monthlyBalances(packages, appointments) {
+    const months = new Set();
+    for (const p of packages) months.add(p.startDate.slice(0, 7));
+    for (const a of appointments) {
+      if (consumesSession(a.status)) months.add(a.start.slice(0, 7));
+    }
+    return [...months].sort().reverse().map(ym => {
+      const pk = packages.filter(p => p.startDate.slice(0, 7) === ym);
+      return {
+        ym,
+        revenue: pk.filter(p => p.paid).reduce((s, p) => s + p.price, 0),
+        outstanding: pk.filter(p => !p.paid).reduce((s, p) => s + p.price, 0),
+        packagesSold: pk.length,
+        attendance: appointments.filter(a =>
+          consumesSession(a.status) && a.start.slice(0, 7) === ym).length
+      };
+    });
+  }
+
   /* Χρονολογικη ταξινομηση ραντεβου */
   function sortAppointmentsChrono(appointments) {
     return [...appointments].sort((a, b) => a.start.localeCompare(b.start));
@@ -193,6 +245,10 @@ const Logic = (() => {
     PLAN_SESSIONS,
     PLAN_LABELS,
     SCHEDULE,
+    PRICE_TABLE,
+    packagePrice,
+    CLASS_TYPES,
+    classLabel,
     consumesSession,
     computeEndDate,
     packageUsed,
@@ -206,6 +262,7 @@ const Logic = (() => {
     slotEnd,
     daysUntil,
     monthSummary,
+    monthlyBalances,
     sortPackagesByPriority,
     sortAppointmentsChrono
   };
