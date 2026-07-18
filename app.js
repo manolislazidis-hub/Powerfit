@@ -1,4 +1,4 @@
-  /* app.js - Στρωμα παρουσιασης. Rendering, events, φορμες.
+/* app.js - Στρωμα παρουσιασης. Rendering, events, φορμες.
    Χρησιμοποιει το Logic για κανονες και το Store για δεδομενα. */
 
 'use strict';
@@ -310,6 +310,23 @@
     return addDays(iso, -((wd + 6) % 7));
   }
 
+  /* Πρωτη ημερα του μηνα, μετατοπισμενη κατα n μηνες */
+  function addMonths(iso, n) {
+    const d = new Date(iso + 'T00:00:00');
+    d.setDate(1);
+    d.setMonth(d.getMonth() + n);
+    const pad = x => String(x).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-01`;
+  }
+
+  /* Ονομα μηνα για τιτλο, π.χ. 'Ιούλιος 2026' */
+  function monthLabel(iso) {
+    const names = ['Ιανουάριος', 'Φεβρουάριος', 'Μάρτιος', 'Απρίλιος', 'Μάιος', 'Ιούνιος',
+      'Ιούλιος', 'Αύγουστος', 'Σεπτέμβριος', 'Οκτώβριος', 'Νοέμβριος', 'Δεκέμβριος'];
+    const d = new Date(iso + 'T00:00:00');
+    return `${names[d.getMonth()]} ${d.getFullYear()}`;
+  }
+
   /* Μη-ακυρωμενα ραντεβου μιας ημερας */
   function dayAppointments(dateISO) {
     return state.appointments.filter(a => a.start.slice(0, 10) === dateISO);
@@ -320,16 +337,19 @@
     if (!state.calDate) state.calDate = todayISO();
     const controls = `
       <div class="cal-controls">
-        <button class="icon-btn" data-act="cal-prev" aria-label="Προηγούμενη εβδομάδα">‹</button>
+        <button class="icon-btn" data-act="cal-prev" aria-label="Προηγούμενο">‹</button>
         <button class="btn small ghost" data-act="cal-today">Σήμερα</button>
         <div class="cal-mode">
           <button class="mode-btn ${state.calMode === 'day' ? 'active' : ''}" data-act="cal-mode" data-mode="day">Ημέρα</button>
-          <button class="mode-btn ${state.calMode === 'week' ? 'active' : ''}" data-act="cal-mode" data-mode="week">Εβδομάδα</button>
+          <button class="mode-btn ${state.calMode === 'week' ? 'active' : ''}" data-act="cal-mode" data-mode="week">Εβδ.</button>
+          <button class="mode-btn ${state.calMode === 'month' ? 'active' : ''}" data-act="cal-mode" data-mode="month">Μήνας</button>
         </div>
-        <button class="icon-btn" data-act="cal-next" aria-label="Επόμενη εβδομάδα">›</button>
+        <button class="icon-btn" data-act="cal-next" aria-label="Επόμενο">›</button>
       </div>`;
     main().innerHTML = controls +
-      (state.calMode === 'day' ? renderDayView() : renderWeekView());
+      (state.calMode === 'day' ? renderDayView()
+        : state.calMode === 'week' ? renderWeekView()
+        : renderMonthView());
   }
 
   /* Λωριδα εβδομαδας: 7 κουμπια ημερων με πληθος κρατησεων */
@@ -373,9 +393,16 @@
       /* Ραντεβου της ζωνης: ιδια ωρα εναρξης */
       const seatAppts = active.filter(a => a.start.slice(11, 16) === slot.start);
       const freeSeats = Math.max(0, Logic.SCHEDULE.capacity - seatAppts.length);
+      /* Ειδος μαθηματος της ζωνης απο τις υπαρχουσες κρατησεις.
+         Οι κενες θεσεις κληρονομουν το ιδιο ειδος στη φορμα. */
+      const slotTypes = [...new Set(seatAppts.map(a => a.classType || 'pilates'))];
+      const slotClass = seatAppts.length ? slotTypes.map(t => Logic.classLabel(t)).join(' / ') : '';
       html += `
         <section class="slot-card">
-          <div class="slot-time mono">${slot.start} – ${Logic.slotEnd(slot.start, slot.durationMin)}</div>
+          <div class="slot-head">
+            <span class="slot-time mono">${slot.start} – ${Logic.slotEnd(slot.start, slot.durationMin)}</span>
+            ${slotClass ? `<span class="class-tag ${slotTypes.length === 1 ? slotTypes[0] : ''}">${slotClass}</span>` : ''}
+          </div>
           <div class="seats">`;
       for (const a of seatAppts) {
         html += `
@@ -387,7 +414,8 @@
       for (let i = 0; i < freeSeats; i++) {
         html += `
           <button class="seat free" data-act="book-slot"
-                  data-date="${date}" data-time="${slot.start}" data-dur="${slot.durationMin}">
+                  data-date="${date}" data-time="${slot.start}" data-dur="${slot.durationMin}"
+                  data-class="${slotTypes.length === 1 ? slotTypes[0] : ''}">
             + Κράτηση
           </button>`;
       }
@@ -462,6 +490,43 @@
     return html + '</div>';
   }
 
+  /* Οψη μηνα: πλεγμα ημερων με πληροτητα, tap -> οψη ημερας */
+  function renderMonthView() {
+    const short = ['Δε', 'Τρ', 'Τε', 'Πε', 'Πα', 'Σα', 'Κυ'];
+    const today = todayISO();
+    const ym = state.calDate.slice(0, 7);            /* τρεχων μηνας 'YYYY-MM' */
+    const monthFirst = ym + '-01';
+    const monthLastDay = addDays(addMonths(monthFirst, 1), -1);
+    const cap = Logic.SCHEDULE.capacity;
+
+    let html = `<h2 class="cal-day-title">${monthLabel(monthFirst)}</h2>`;
+    html += '<div class="month-grid">';
+    /* Κεφαλιδα ημερων εβδομαδας */
+    for (const s of short) html += `<div class="mg-cell mg-head">${s}</div>`;
+
+    /* Κελια: απο τη Δευτερα της εβδομαδας του 1ου μεχρι το τελος
+       της εβδομαδας που περιεχει την τελευταια ημερα του μηνα */
+    let date = weekStart(monthFirst);
+    const end = addDays(weekStart(monthLastDay), 6);
+    while (date <= end) {
+      const inMonth = date.slice(0, 7) === ym;
+      const booked = dayAppointments(date).filter(a => a.status !== 'cancelled').length;
+      /* Συνολικες θεσεις ημερας = ζωνες x χωρητικοτητα */
+      const totalSeats = Logic.slotsForDate(date).length * cap;
+      const cls = !inMonth ? 'other'
+        : booked === 0 ? 'empty'
+        : (totalSeats > 0 && booked >= totalSeats) ? 'full' : 'part';
+      html += `
+        <button class="mg-cell mg-day ${cls} ${date === today ? 'today' : ''}"
+                data-act="cal-cell" data-date="${date}">
+          <span class="mg-num mono">${parseInt(date.slice(8, 10), 10)}</span>
+          <span class="mg-count mono">${booked || ''}</span>
+        </button>`;
+      date = addDays(date, 1);
+    }
+    return html + '</div>';
+  }
+
   /* Ετικετες κατασταστης ραντεβου */
   function statusLabel(status) {
     return {
@@ -477,7 +542,8 @@
     const canMark = appt.status === 'scheduled';
     openSheet(`
       <h2>${esc(memberName(appt.memberId))}</h2>
-      <p class="sub mono">${fmtDateTime(appt.start)} · ${appt.durationMin}′</p>
+      <p class="sub mono">${fmtDateTime(appt.start)} · ${appt.durationMin}′ ·
+        ${Logic.classLabel(appt.classType)}</p>
       ${appt.notes ? `<p class="sub">${esc(appt.notes)}</p>` : ''}
       <div class="form-actions column">
         ${canMark ? `
@@ -536,39 +602,86 @@
     });
   }
 
-  /* Κοινα πεδια πακετου: tier, plan, τιμη */
-  function packageFieldsHTML(existing) {
-    /* Προεπιλογη πλανου απο τον αριθμο συνεδριων του υπαρχοντος πακετου */
-    const planOf = s => s === 1 ? 'daily' : s === 4 ? 'x4' : 'x8';
-    const plan = existing ? planOf(existing.sessions) : 'x8';
+  /* Μορφοποιηση ευρω με ελληνικο δεκαδικο κομμα (π.χ. 16,25) */
+  function fmtEuro(x) {
+    return x.toFixed(2).replace('.', ',');
+  }
+
+  /* Κοινος επιλογεας πακετου: tabs tier + πλεγμα συνεδριων 1-16 + τιμη.
+     Η τιμη υπολογιζεται αυτοματα απο τον καταλογο αλλα μενει επεξεργασιμη
+     για κατ' εξαιρεση τιμολογηση. */
+  function packagePickerHTML(tier, sessions, price) {
+    const sessBtns = [...Array(16)].map((_, i) => {
+      const n = i + 1;
+      return `<button type="button" class="sess-btn ${n === sessions ? 'active' : ''}" data-sess="${n}">${n}</button>`;
+    }).join('');
     return `
-      <label>Τύπος
-        <select name="tier">
-          <option ${existing?.tier === 'Classic' ? '' : 'selected'}>Golden</option>
-          <option ${existing?.tier === 'Classic' ? 'selected' : ''}>Classic</option>
-        </select>
-      </label>
-      <label>Πλάνο
-        <select name="plan">
-          <option value="daily" ${plan === 'daily' ? 'selected' : ''}>Ημερήσιο (1 συνεδρία)</option>
-          <option value="x4" ${plan === 'x4' ? 'selected' : ''}>4 φορές (4 συνεδρίες)</option>
-          <option value="x8" ${plan === 'x8' ? 'selected' : ''}>8 φορές (8 συνεδρίες)</option>
-        </select>
-      </label>
-      <label>Τιμή (€)<input name="price" type="number" min="0" step="0.01" required value="${existing?.price ?? ''}"></label>`;
+      <input type="hidden" name="tier" value="${tier}">
+      <input type="hidden" name="sessions" value="${sessions}">
+      <div class="seg">
+        <button type="button" class="seg-btn ${tier === 'Classic' ? 'active' : ''}" data-tier="Classic">Classic</button>
+        <button type="button" class="seg-btn ${tier === 'Golden' ? 'active' : ''}" data-tier="Golden">Golden</button>
+      </div>
+      <div class="sess-grid">${sessBtns}</div>
+      <p class="price-line mono" data-role="price-display"></p>
+      <label>Τιμή (€)
+        <input name="price" type="number" min="0" step="0.01" required value="${price ?? ''}">
+      </label>`;
+  }
+
+  /* Συνδεση συμπεριφορας του επιλογεα μεσα σε μια φορμα:
+     - tap σε tier/συνεδριες ενημερωνει τα κρυφα inputs και ΞΑΝΑΥΠΟΛΟΓΙΖΕΙ την τιμη
+     - χειροκινητη αλλαγη τιμης ενημερωνει μονο την ενδειξη ανα μαθημα */
+  function wirePackagePicker(form) {
+    const tierInput = form.querySelector('[name=tier]');
+    const sessInput = form.querySelector('[name=sessions]');
+    const priceInput = form.querySelector('[name=price]');
+    const display = form.querySelector('[data-role=price-display]');
+
+    /* Ενδειξη: "130 € (16,25 €/μάθημα)" απο την τρεχουσα τιμη */
+    function updateDisplay() {
+      const price = parseFloat(priceInput.value);
+      const n = parseInt(sessInput.value, 10);
+      display.textContent = (isFinite(price) && n > 0)
+        ? `${fmtEuro(price)} € (${fmtEuro(price / n)} €/μάθημα)` : '';
+    }
+    /* Νεα επιλογη: τιμη απο τον καταλογο */
+    function applyAutoPrice() {
+      const p = Logic.packagePrice(tierInput.value, parseInt(sessInput.value, 10));
+      if (p != null) priceInput.value = p;
+      updateDisplay();
+    }
+
+    form.querySelectorAll('.seg-btn').forEach(b => b.addEventListener('click', () => {
+      form.querySelectorAll('.seg-btn').forEach(x => x.classList.toggle('active', x === b));
+      tierInput.value = b.dataset.tier;
+      applyAutoPrice();
+    }));
+    form.querySelectorAll('.sess-btn').forEach(b => b.addEventListener('click', () => {
+      form.querySelectorAll('.sess-btn').forEach(x => x.classList.toggle('active', x === b));
+      sessInput.value = b.dataset.sess;
+      applyAutoPrice();
+    }));
+    priceInput.addEventListener('input', updateDisplay);
+
+    updateDisplay();
   }
 
   /* -- Φορμα πακετου -- */
   function packageForm(existing) {
     if (!state.members.length) { toast('Πρόσθεσε πρώτα ένα μέλος'); return; }
     const start = existing?.startDate ?? todayISO();
+    /* Προεπιλογες επιλογεα: υπαρχον πακετο η Golden 8 με τιμη καταλογου */
+    const tier = existing?.tier ?? 'Golden';
+    const sessions = existing?.sessions ?? 8;
+    const price = existing?.price ?? Logic.packagePrice(tier, sessions);
     openSheet(`
       <h2>${existing ? 'Επεξεργασία πακέτου' : 'Νέο πακέτο'}</h2>
       <form id="f-package">
         <label>Μέλος
           <select name="memberId">${memberOptions(existing?.memberId)}</select>
         </label>
-        ${packageFieldsHTML(existing)}
+        ${packagePickerHTML(tier, sessions, price)}
         <label>Έναρξη<input name="startDate" type="date" required value="${start}"></label>
         <p class="sub">Λήξη (αυτόματα +28 ημέρες): <span class="mono" id="end-preview">${fmtDate(Logic.computeEndDate(start))}</span></p>
         <label class="check"><input name="paid" type="checkbox" ${existing?.paid ? 'checked' : ''}> Πληρωμένο</label>
@@ -578,6 +691,7 @@
           <button type="submit" class="btn primary">Αποθήκευση</button>
         </div>
       </form>`);
+    wirePackagePicker($('#f-package'));
     /* Ζωντανη ενημερωση της προεπισκοπησης ληξης */
     $('#f-package [name=startDate]').addEventListener('input', e => {
       if (e.target.value) $('#end-preview').textContent = fmtDate(Logic.computeEndDate(e.target.value));
@@ -588,7 +702,7 @@
       const fields = {
         memberId: f.get('memberId'),
         tier: f.get('tier'),
-        sessions: Logic.PLAN_SESSIONS[f.get('plan')],
+        sessions: parseInt(f.get('sessions'), 10),
         price: parseFloat(f.get('price')),
         startDate: f.get('startDate'),
         endDate: Logic.computeEndDate(f.get('startDate')),
@@ -607,13 +721,21 @@
   function appointmentForm(existing, prefill) {
     if (!state.members.length) { toast('Πρόσθεσε πρώτα ένα μέλος'); return; }
     const startVal = existing ? existing.start.slice(0, 16)
-      : prefill ? prefill.start : '';
+      : prefill ? (prefill.start || '') : '';
     const durVal = existing?.durationMin ?? prefill?.durationMin ?? 55;
+    /* Ειδος μαθηματος: υπαρχον > κληρονομια απο τη ζωνη > προεπιλογη Pilates */
+    const classVal = existing?.classType ?? prefill?.classType ?? 'pilates';
     openSheet(`
       <h2>${existing ? 'Επεξεργασία ραντεβού' : 'Νέο ραντεβού'}</h2>
       <form id="f-appt">
         <label>Μέλος
           <select name="memberId">${memberOptions(existing?.memberId ?? prefill?.memberId)}</select>
+        </label>
+        <label>Είδος μαθήματος
+          <select name="classType">
+            <option value="pilates" ${classVal === 'pilates' ? 'selected' : ''}>Pilates</option>
+            <option value="weights" ${classVal === 'weights' ? 'selected' : ''}>Βάρη</option>
+          </select>
         </label>
         <label>Ημερομηνία & ώρα<input name="start" type="datetime-local" required value="${startVal}"></label>
         <label>Διάρκεια (λεπτά)<input name="durationMin" type="number" min="5" step="5" required value="${durVal}"></label>
@@ -629,6 +751,7 @@
       const f = new FormData(e.target);
       const fields = {
         memberId: f.get('memberId'),
+        classType: f.get('classType'),
         start: f.get('start'),
         durationMin: parseInt(f.get('durationMin'), 10),
         notes: f.get('notes').trim()
@@ -655,13 +778,14 @@
       <p>Ο/η <strong>${esc(member.name)}</strong> δεν έχει ενεργό πακέτο.
          Με ποιο πακέτο συνεχίζει;</p>
       <form id="f-renew">
-        ${packageFieldsHTML(null)}
+        ${packagePickerHTML('Golden', 8, Logic.packagePrice('Golden', 8))}
         <p class="form-error" hidden></p>
         <div class="form-actions">
           <button type="button" class="btn ghost" data-act="close-sheet">Άκυρο</button>
           <button type="submit" class="btn primary">Δημιουργία & χρέωση</button>
         </div>
       </form>`);
+    wirePackagePicker($('#f-renew'));
     $('#f-renew').addEventListener('submit', async e => {
       e.preventDefault();
       const f = new FormData(e.target);
@@ -670,7 +794,7 @@
       const pkg = await Store.put('packages', Store.newRecord({
         memberId: member.id,
         tier: f.get('tier'),
-        sessions: Logic.PLAN_SESSIONS[f.get('plan')],
+        sessions: parseInt(f.get('sessions'), 10),
         price: parseFloat(f.get('price')),
         startDate: start,
         endDate: Logic.computeEndDate(start),
@@ -711,6 +835,34 @@
       const member = state.members.find(m => m.id === appt.memberId);
       renewalForm(member, appt.id, status);
     }
+  }
+
+  /* ---- Κρυφη σελιδα: μηνιαιος ισολογισμος (tap στο λογοτυπο) ----
+     Υπολογιζεται παντα ζωντανα απο τα δεδομενα, δεν αποθηκευεται ξεχωριστα. */
+  function balanceSheet() {
+    const rows = Logic.monthlyBalances(state.packages, state.appointments);
+    const body = !rows.length
+      ? '<p class="sub">Δεν υπάρχουν ακόμα δεδομένα.</p>'
+      : rows.map(r => `
+        <div class="bal-row">
+          <div class="bal-month">${monthLabel(r.ym + '-01')}</div>
+          <div class="bal-stats">
+            <span class="bal-stat"><span class="bal-label">Έσοδα</span>
+              <span class="mono">${r.revenue} €</span></span>
+            <span class="bal-stat"><span class="bal-label">Απλήρωτα</span>
+              <span class="mono ${r.outstanding ? 'warn-text' : ''}">${r.outstanding} €</span></span>
+            <span class="bal-stat"><span class="bal-label">Πακέτα</span>
+              <span class="mono">${r.packagesSold}</span></span>
+            <span class="bal-stat"><span class="bal-label">Παρουσίες</span>
+              <span class="mono">${r.attendance}</span></span>
+          </div>
+        </div>`).join('');
+    openSheet(`
+      <h2>Μηνιαίος ισολογισμός</h2>
+      ${body}
+      <div class="form-actions">
+        <button class="btn ghost" data-act="close-sheet">Κλείσιμο</button>
+      </div>`);
   }
 
   /* ---- Backup: Export / Import ---- */
@@ -788,6 +940,7 @@
       case 'close-sheet': closeSheet(); break;
       case 'apply-update': applyUpdate(); break;
       case 'backup': backupSheet(); break;
+      case 'balance': balanceSheet(); break;
       case 'export': doExport(); break;
       case 'edit-member': memberForm(state.members.find(m => m.id === id)); break;
       case 'del-member': deleteMember(id); break;
@@ -823,13 +976,22 @@
       case 'book-slot':
         appointmentForm(null, {
           start: `${btn.dataset.date}T${btn.dataset.time}`,
-          durationMin: parseInt(btn.dataset.dur, 10)
+          durationMin: parseInt(btn.dataset.dur, 10),
+          classType: btn.dataset.class || undefined
         });
         break;
       case 'cal-day': state.calDate = btn.dataset.date; render(); break;
       case 'cal-cell': state.calDate = btn.dataset.date; state.calMode = 'day'; render(); break;
-      case 'cal-prev': state.calDate = addDays(state.calDate, -7); render(); break;
-      case 'cal-next': state.calDate = addDays(state.calDate, 7); render(); break;
+      case 'cal-prev':
+        state.calDate = state.calMode === 'month'
+          ? addMonths(state.calDate, -1) : addDays(state.calDate, -7);
+        render();
+        break;
+      case 'cal-next':
+        state.calDate = state.calMode === 'month'
+          ? addMonths(state.calDate, 1) : addDays(state.calDate, 7);
+        render();
+        break;
       case 'cal-today': state.calDate = todayISO(); render(); break;
       case 'cal-mode': state.calMode = btn.dataset.mode; render(); break;
       case 'fab': {
