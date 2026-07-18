@@ -46,9 +46,12 @@
   <!-- Κατω tab bar -->
   <nav class="tabbar">
     <button class="tab active" data-view="members">Μέλη</button>
-    <button class="tab" data-view="packages">Πακέτα</button>
+    <button class="tab" data-view="packages">Πακέτα<span id="unpaid-badge" class="tab-badge" hidden></span></button>
     <button class="tab" data-view="appointments">Ραντεβού</button>
   </nav>
+
+  <!-- Toasts: συντομες επιβεβαιωσεις ενεργειων -->
+  <div id="toasts"></div>
 
   <!-- Bottom sheet για φορμες -->
   <div id="sheet-overlay">
