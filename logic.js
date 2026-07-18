@@ -26,6 +26,49 @@ const Logic = (() => {
   /* Καταστασεις ραντεβου που καταναλωνουν συνεδρια */
   const CONSUMING_STATUSES = ['present', 'charged_absence'];
 
+  /* ---- Προγραμμα ζωνων (modular) ----
+     ΟΛΕΣ οι αλλαγες ωραριου γινονται ΜΟΝΟ εδω. Το ημερολογιο, οι θεσεις
+     και ο ελεγχος πληροτητας παραγονται αυτοματα απο αυτο το αντικειμενο. */
+
+  /* Οι τυπικες ζωνες μιας ημερας */
+  const DEFAULT_SLOTS = [
+    { start: '17:40', durationMin: 50 },
+    { start: '18:35', durationMin: 50 },
+    { start: '19:30', durationMin: 50 },
+    { start: '20:25', durationMin: 45 },
+    { start: '21:15', durationMin: 45 }
+  ];
+
+  const SCHEDULE = {
+    /* Μεγιστος αριθμος ατομων που γυμναζονται ταυτοχρονα */
+    capacity: 2,
+    /* Ζωνες ανα ημερα εβδομαδας: 0=Κυριακη, 1=Δευτερα, ... 6=Σαββατο.
+       Καθε ημερα μπορει να παρει δικη της λιστα (η κενη [] για αργια). */
+    weekdays: {
+      0: DEFAULT_SLOTS,
+      1: DEFAULT_SLOTS,
+      2: DEFAULT_SLOTS,
+      3: DEFAULT_SLOTS,
+      4: DEFAULT_SLOTS,
+      5: DEFAULT_SLOTS,
+      6: DEFAULT_SLOTS
+    }
+  };
+
+  /* Οι ζωνες μιας συγκεκριμενης ημερομηνιας 'YYYY-MM-DD' */
+  function slotsForDate(dateISO) {
+    const wd = new Date(dateISO + 'T00:00:00').getDay();
+    return SCHEDULE.weekdays[wd] || [];
+  }
+
+  /* Ωρα ληξης ζωνης: 'HH:MM' + διαρκεια -> 'HH:MM' */
+  function slotEnd(start, durationMin) {
+    const [h, m] = start.split(':').map(Number);
+    const total = h * 60 + m + durationMin;
+    const pad = n => String(n).padStart(2, '0');
+    return `${pad(Math.floor(total / 60) % 24)}:${pad(total % 60)}`;
+  }
+
   /* Επιστρεφει true αν η κατασταση ραντεβου καταναλωνει συνεδρια */
   function consumesSession(status) {
     return CONSUMING_STATUSES.includes(status);
@@ -82,15 +125,20 @@ const Logic = (() => {
     return aStart < bEnd && bStart < aEnd;
   }
 
-  /* Βρισκει συγκρουση για νεο/επεξεργασμενο ραντεβου.
-     Αγνοει ακυρωμενα ραντεβου και το ιδιο το ραντεβου (κατα την επεξεργασια).
-     Επιστρεφει το πρωτο συγκρουομενο ραντεβου η null. */
-  function findConflict(appt, allAppointments) {
-    return allAppointments.find(other =>
+  /* Πληθος αλλων μη-ακυρωμενων ραντεβου που επικαλυπτονται χρονικα
+     με το δοσμενο (το ιδιο ραντεβου εξαιρειται κατα την επεξεργασια) */
+  function countConcurrent(appt, allAppointments) {
+    return allAppointments.filter(other =>
       other.id !== appt.id &&
       other.status !== 'cancelled' &&
       overlaps(appt, other)
-    ) || null;
+    ).length;
+  }
+
+  /* Ελεγχος πληροτητας: συγκρουση οταν οι ταυτοχρονες θεσεις
+     εχουν ηδη συμπληρωθει (capacity ατομα την ιδια ωρα) */
+  function capacityConflict(appt, allAppointments) {
+    return countConcurrent(appt, allAppointments) >= SCHEDULE.capacity;
   }
 
   /* Ταξινομηση πακετων για την οψη Πακετα:
@@ -112,6 +160,29 @@ const Logic = (() => {
     });
   }
 
+  /* Ημερες απο σημερα μεχρι την ημερομηνια (αρνητικο αν εχει περασει) */
+  function daysUntil(dateISO, todayISO) {
+    const a = new Date(todayISO + 'T00:00:00Z');
+    const b = new Date(dateISO + 'T00:00:00Z');
+    return Math.round((b - a) / 86400000);
+  }
+
+  /* Συνοψη μηνα ym = 'YYYY-MM':
+     - revenue: εσοδα απο πληρωμενα πακετα με εναρξη στον μηνα
+     - unpaidTotal/unpaidCount: ολα τα απληρωτα πακετα (ανεξαρτητα μηνα)
+     - attendance: καταναλωμενες συνεδριες μεσα στον μηνα */
+  function monthSummary(packages, appointments, ym) {
+    const paidInMonth = packages.filter(p => p.paid && p.startDate.slice(0, 7) === ym);
+    const unpaid = packages.filter(p => !p.paid);
+    return {
+      revenue: paidInMonth.reduce((s, p) => s + p.price, 0),
+      unpaidTotal: unpaid.reduce((s, p) => s + p.price, 0),
+      unpaidCount: unpaid.length,
+      attendance: appointments.filter(a =>
+        consumesSession(a.status) && a.start.slice(0, 7) === ym).length
+    };
+  }
+
   /* Χρονολογικη ταξινομηση ραντεβου */
   function sortAppointmentsChrono(appointments) {
     return [...appointments].sort((a, b) => a.start.localeCompare(b.start));
@@ -121,6 +192,7 @@ const Logic = (() => {
     PACKAGE_DAYS,
     PLAN_SESSIONS,
     PLAN_LABELS,
+    SCHEDULE,
     consumesSession,
     computeEndDate,
     packageUsed,
@@ -128,7 +200,12 @@ const Logic = (() => {
     packageState,
     activePackage,
     overlaps,
-    findConflict,
+    countConcurrent,
+    capacityConflict,
+    slotsForDate,
+    slotEnd,
+    daysUntil,
+    monthSummary,
     sortPackagesByPriority,
     sortAppointmentsChrono
   };
