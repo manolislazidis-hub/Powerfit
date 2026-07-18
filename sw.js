@@ -2,7 +2,7 @@
    να ανοιγει και offline. Στρατηγικη: cache-first για τα αρχεια του shell.
    Σε καθε αλλαγη αρχειων: αυξησε το CACHE_NAME για να ανανεωθει το cache. */
 
-const CACHE_NAME = 'powerfit-v3';
+const CACHE_NAME = 'powerfit-v4';
 
 /* Ολα τα αρχεια του app shell */
 const SHELL = [
@@ -18,12 +18,19 @@ const SHELL = [
   './icons/apple-touch-icon.png'
 ];
 
-/* Εγκατασταση: προφορτωση ολου του shell στο cache */
+/* Εγκατασταση: προφορτωση ολου του shell στο cache.
+   Ο νεος worker ΔΕΝ ενεργοποιειται αυτοματα: περιμενει (waiting) μεχρι
+   ο χρηστης να πατησει "Ανανεωση" στο banner της εφαρμογης. */
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache => cache.addAll(SHELL))
   );
-  self.skipWaiting();
+});
+
+/* Ενεργοποιηση κατ' απαιτηση: η εφαρμογη στελνει SKIP_WAITING
+   οταν ο χρηστης αποδεχτει την ενημερωση */
+self.addEventListener('message', event => {
+  if (event.data === 'SKIP_WAITING') self.skipWaiting();
 });
 
 /* Ενεργοποιηση: καθαρισμος παλιων εκδοσεων cache */
