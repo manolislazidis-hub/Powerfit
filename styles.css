@@ -319,3 +319,233 @@ input:focus, select:focus, textarea:focus, .btn:focus-visible, .tab:focus-visibl
   gap: 6px;
 }
 .empty p:first-child { font-family: var(--font-display); font-size: 18px; font-weight: 600; color: var(--ink); }
+
+/* ---- Ημερολογιο ραντεβου ---- */
+
+/* Γραμμη ελεγχων: βελακια εβδομαδας, Σημερα, εναλλαγη Ημερα/Εβδομαδα */
+.cal-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.cal-mode { display: flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+
+.mode-btn {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 8px 12px;
+  border: none;
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+  min-height: 40px;
+}
+.mode-btn.active { background: var(--brand); color: #fff; }
+
+/* Λωριδα εβδομαδας: 7 κουμπια ημερων */
+.week-strip {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.day-btn {
+  display: grid;
+  gap: 2px;
+  justify-items: center;
+  padding: 8px 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  cursor: pointer;
+  font-family: inherit;
+}
+.day-btn .dow { font-size: 11px; font-weight: 600; color: var(--muted); }
+.day-btn .dnum { font-size: 16px; font-weight: 700; color: var(--ink); }
+.day-btn .dcount { font-size: 10px; color: var(--brand); min-height: 12px; }
+.day-btn.today .dnum { color: var(--brand); }
+.day-btn.selected { background: var(--brand); border-color: var(--brand); }
+.day-btn.selected .dow, .day-btn.selected .dnum,
+.day-btn.selected .dcount { color: #fff; }
+
+.cal-day-title {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding-top: 6px;
+}
+
+/* Καρτα ζωνης με τις θεσεις της */
+.slot-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.slot-time { font-size: 14px; font-weight: 600; color: var(--muted); }
+
+.seats { display: grid; gap: 6px; }
+
+/* Θεση: γεματη (ραντεβου) η ελευθερη (+ Κρατηση) */
+.seat {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  border-left-width: 4px;
+  background: var(--paper);
+  font-family: inherit;
+  font-size: 15px;
+  cursor: pointer;
+  min-height: 44px;
+  text-align: left;
+  width: 100%;
+}
+.seat-name { font-weight: 600; color: var(--ink); flex: 1; }
+.seat .chip { margin-left: auto; }
+.seat .mono { color: var(--muted); }
+
+/* Χρωμα κατασταστης στην αριστερη ακμη της θεσης */
+.seat.st-scheduled       { border-left-color: var(--brand); }
+.seat.st-present         { border-left-color: var(--ok); }
+.seat.st-charged_absence { border-left-color: var(--absence); }
+.seat.st-cancelled       { border-left-color: var(--line); opacity: 0.6; }
+
+.seat.free {
+  justify-content: center;
+  border-style: dashed;
+  color: var(--brand);
+  font-weight: 600;
+  background: transparent;
+}
+
+.seat.offgrid { background: var(--surface); }
+
+.danger-text { color: var(--bad); }
+
+/* Πλεγμα εβδομαδας: στηλη ωρας + 7 ημερες */
+.week-grid {
+  display: grid;
+  grid-template-columns: 48px repeat(7, 1fr);
+  gap: 3px;
+}
+
+.wg-cell {
+  display: grid;
+  place-items: center;
+  min-height: 40px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.wg-head { font-family: var(--font-display); font-weight: 600; color: var(--muted); text-align: center; }
+.wg-head.today { color: var(--brand); }
+
+.wg-time { color: var(--muted); font-size: 11px; }
+
+.wg-slot {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  cursor: pointer;
+  font-family: inherit;
+}
+.wg-slot.empty .mono { color: var(--muted); }
+.wg-slot.part  { border-color: var(--brand); }
+.wg-slot.part .mono { color: var(--brand); font-weight: 700; }
+.wg-slot.full  { background: var(--brand); border-color: var(--brand); }
+.wg-slot.full .mono { color: #fff; font-weight: 700; }
+
+.wg-off { background: transparent; }
+
+/* ---- Toasts ---- */
+
+#toasts {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(84px + env(safe-area-inset-bottom));
+  display: grid;
+  gap: 6px;
+  z-index: 30;
+  pointer-events: none;
+}
+
+.toast {
+  background: var(--ink);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 10px 16px;
+  border-radius: 20px;
+  white-space: nowrap;
+  opacity: 1;
+  transition: opacity 0.4s;
+}
+.toast.out { opacity: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .toast { transition: none; }
+}
+
+/* ---- Badge απληρωτων στο tab ---- */
+
+.tab { position: relative; }
+
+.tab-badge {
+  position: absolute;
+  top: 8px;
+  right: 14px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: var(--bad);
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+}
+.tab-badge[hidden] { display: none; }
+
+/* ---- Αναζητηση μελων ---- */
+
+.search { margin-bottom: 2px; }
+
+/* ---- Συνοψη μηνα (οψη Πακετα) ---- */
+
+.summary-card {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 10px;
+}
+
+.stat { display: grid; gap: 2px; justify-items: center; text-align: center; }
+.stat-label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.stat-value { font-size: 17px; font-weight: 700; color: var(--ink); }
+
+/* ---- Λοιπες ενδειξεις ---- */
+
+.warn-text { color: var(--low); font-weight: 600; }
+
+.chip.expired { color: #fff; background: var(--low); }
+
+.icon-btn.brand { color: var(--brand); font-weight: 700; }
+
+.btn.danger-solid { background: var(--bad); color: #fff; }
