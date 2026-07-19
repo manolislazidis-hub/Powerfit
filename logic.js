@@ -82,6 +82,19 @@ const Logic = (() => {
     }
   };
 
+  /* Εφαρμογη αποθηκευμενου ωραριου (απο το store 'settings').
+     Μεταλλασσει το SCHEDULE επι τοπου ωστε ολες οι αναφορες να μενουν ζωντανες.
+     Αν δεν υπαρχει εγκυρη εγγραφη, μενουν οι προεπιλογες. */
+  function setSchedule(saved) {
+    if (!saved) return;
+    if (Number.isInteger(saved.capacity) && saved.capacity >= 1) {
+      SCHEDULE.capacity = saved.capacity;
+    }
+    if (saved.weekdays && typeof saved.weekdays === 'object') {
+      SCHEDULE.weekdays = saved.weekdays;
+    }
+  }
+
   /* Οι ζωνες μιας συγκεκριμενης ημερομηνιας 'YYYY-MM-DD' */
   function slotsForDate(dateISO) {
     const wd = new Date(dateISO + 'T00:00:00').getDay();
@@ -245,6 +258,7 @@ const Logic = (() => {
     PLAN_SESSIONS,
     PLAN_LABELS,
     SCHEDULE,
+    setSchedule,
     PRICE_TABLE,
     packagePrice,
     CLASS_TYPES,
