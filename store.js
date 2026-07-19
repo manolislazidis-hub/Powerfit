@@ -12,7 +12,7 @@ const Store = (() => {
   const SYNC = {
     enabled: true,
     url: 'https://pywbgbzkofoofbjeruac.supabase.co',
-    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB5d2JnYnprb2Zvb2ZiamVydWFjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzNjA4NzksImV4cCI6MjA5OTkzNjg3OX0.4Fmsux3mFvWvUou7u8LO45ej3LSojRSfF6GEqtVgeRk'
+    anonKey: 'sb_publishable_ngwYnj2zaC7jI7NZFXysMw_UN-WVSZo'
   };
 
   const DB_NAME = 'powerfit';
