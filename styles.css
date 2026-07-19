@@ -796,3 +796,23 @@ input:focus, select:focus, textarea:focus, .btn:focus-visible, .tab:focus-visibl
   gap: 8px;
   align-items: center;
 }
+
+
+/* ---- Οθονη συνδεσης ---- */
+
+#login-screen {
+  position: fixed;
+  inset: 0;
+  background: var(--paper);
+  z-index: 40;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 20px;
+  padding: 24px;
+}
+#login-screen[hidden] { display: none; }
+
+.login-logo { width: 140px; height: auto; }
+
+#f-login { width: 100%; max-width: 340px; display: grid; gap: 12px; }
