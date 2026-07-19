@@ -25,23 +25,31 @@
     <button class="btn small" data-act="apply-update">Ανανέωση</button>
   </div>
 
-  <!-- Κεφαλιδα: τιτλος οψης, ενδειξη συγχρονισμου και κουμπι backup -->
+  <!-- Κεφαλιδα: brand στο κεντρο, ενδειξη sync αριστερα, backup δεξια -->
   <header class="topbar">
-    <div>
-      <div class="brand" data-act="balance">Power Fit</div>
+    <span id="sync-status" class="sync-status mono" hidden></span>
+    <div class="brand-wrap">
+      <img class="brand-logo" src="icons/logo.png" alt="Power Fit" data-act="balance">
       <h1 id="view-title">Μέλη</h1>
     </div>
-    <div class="topbar-right">
-      <span id="sync-status" class="sync-status mono" hidden></span>
-      <button class="icon-btn" data-act="backup" aria-label="Αντίγραφα ασφαλείας">⇅</button>
-    </div>
+    <button class="icon-btn" data-act="backup" aria-label="Αντίγραφα ασφαλείας">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 3v10M8 9l4 4 4-4M4 17v3h16v-3"/>
+      </svg>
+    </button>
   </header>
 
   <!-- Περιεχομενο ενεργης οψης -->
   <main id="main"></main>
 
   <!-- Πλωτο κουμπι προσθηκης -->
-  <button class="fab" data-act="fab" aria-label="Προσθήκη">+</button>
+  <button class="fab" data-act="fab" aria-label="Προσθήκη">
+    <svg class="icon fab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
+      <path d="M12 5v14M5 12h14"/>
+    </svg>
+  </button>
 
   <!-- Κατω tab bar -->
   <nav class="tabbar">
