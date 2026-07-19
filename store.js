@@ -10,9 +10,9 @@ const Store = (() => {
      Για ενεργοποιηση: enabled = true και συμπληρωση url + anonKey.
      Δες README.md για τη δημιουργια του project και το SQL των πινακων. */
   const SYNC = {
-    enabled: false,
-    url: 'https://YOUR-PROJECT.supabase.co',   /* placeholder */
-    anonKey: 'YOUR-ANON-KEY'                   /* placeholder */
+    enabled: true,
+    url: 'https://pywbgbzkofoofbjeruac.supabase.co',
+    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB5d2JnYnprb2Zvb2ZiamVydWFjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzNjA4NzksImV4cCI6MjA5OTkzNjg3OX0.4Fmsux3mFvWvUou7u8LO45ej3LSojRSfF6GEqtVgeRk'
   };
 
   const DB_NAME = 'powerfit';
