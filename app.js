@@ -27,6 +27,22 @@
     }[c]));
   }
 
+  /* ---- Inline SVG εικονιδια (γραμμικο στυλ, stroke currentColor) ----
+     Ενσωματωμενα στον κωδικα: ιδια αποδοση παντου, μηδεν εξωτερικα αρχεια. */
+  const ICONS = {
+    edit: '<path d="M17 3l4 4L8 20l-5 1 1-5z"/>',
+    trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>',
+    chevronLeft: '<path d="M15 5l-7 7 7 7"/>',
+    chevronRight: '<path d="M9 5l7 7-7 7"/>'
+  };
+
+  function icon(name) {
+    return `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+      aria-hidden="true">${ICONS[name]}</svg>`;
+  }
+
   /* ---- Μορφοποιηση ημερομηνιων για εμφανιση ---- */
 
   /* 'YYYY-MM-DD' -> 'DD/MM/YY' */
@@ -83,6 +99,8 @@
   async function refresh() {
     await loadAll();
     render();
+    /* Το pop της κουκκιδας παιζει μονο στην πρωτη αναπαρασταση */
+    state.popDot = null;
   }
 
   /* Ονομα μελους απο id */
@@ -166,7 +184,9 @@
     );
     let dots = '';
     for (const a of consumed.slice(0, pkg.sessions)) {
-      dots += `<span class="dot ${a.status === 'charged_absence' ? 'absence' : 'used'}"></span>`;
+      /* Η κουκκιδα του ραντεβου που μολις μαρκαριστηκε παιρνει animation pop */
+      const pop = a.id === state.popDot ? ' pop' : '';
+      dots += `<span class="dot ${a.status === 'charged_absence' ? 'absence' : 'used'}${pop}"></span>`;
     }
     const remaining = Math.max(0, pkg.sessions - consumed.length);
     for (let i = 0; i < remaining; i++) dots += '<span class="dot free"></span>';
@@ -219,9 +239,9 @@
           <div class="card-head">
             <h3>${esc(m.name)}</h3>
             <div class="card-actions">
-              <button class="icon-btn brand" data-act="book-member" data-id="${m.id}" aria-label="Νέο ραντεβού">+</button>
-              <button class="icon-btn" data-act="edit-member" data-id="${m.id}" aria-label="Επεξεργασία">✎</button>
-              <button class="icon-btn danger" data-act="del-member" data-id="${m.id}" aria-label="Διαγραφή">✕</button>
+              <button class="icon-btn brand" data-act="book-member" data-id="${m.id}" aria-label="Νέο ραντεβού">${icon('plus')}</button>
+              <button class="icon-btn" data-act="edit-member" data-id="${m.id}" aria-label="Επεξεργασία">${icon('edit')}</button>
+              <button class="icon-btn danger" data-act="del-member" data-id="${m.id}" aria-label="Διαγραφή">${icon('trash')}</button>
             </div>
           </div>
           ${statusHTML}
@@ -273,8 +293,8 @@
           <div class="card-head">
             <h3>${esc(memberName(p.memberId))}</h3>
             <div class="card-actions">
-              <button class="icon-btn" data-act="edit-package" data-id="${p.id}" aria-label="Επεξεργασία">✎</button>
-              <button class="icon-btn danger" data-act="del-package" data-id="${p.id}" aria-label="Διαγραφή">✕</button>
+              <button class="icon-btn" data-act="edit-package" data-id="${p.id}" aria-label="Επεξεργασία">${icon('edit')}</button>
+              <button class="icon-btn danger" data-act="del-package" data-id="${p.id}" aria-label="Διαγραφή">${icon('trash')}</button>
             </div>
           </div>
           <div class="pkg-line">
@@ -337,14 +357,14 @@
     if (!state.calDate) state.calDate = todayISO();
     const controls = `
       <div class="cal-controls">
-        <button class="icon-btn" data-act="cal-prev" aria-label="Προηγούμενο">‹</button>
+        <button class="icon-btn" data-act="cal-prev" aria-label="Προηγούμενο">${icon('chevronLeft')}</button>
         <button class="btn small ghost" data-act="cal-today">Σήμερα</button>
         <div class="cal-mode">
           <button class="mode-btn ${state.calMode === 'day' ? 'active' : ''}" data-act="cal-mode" data-mode="day">Ημέρα</button>
           <button class="mode-btn ${state.calMode === 'week' ? 'active' : ''}" data-act="cal-mode" data-mode="week">Εβδ.</button>
           <button class="mode-btn ${state.calMode === 'month' ? 'active' : ''}" data-act="cal-mode" data-mode="month">Μήνας</button>
         </div>
-        <button class="icon-btn" data-act="cal-next" aria-label="Επόμενο">›</button>
+        <button class="icon-btn" data-act="cal-next" aria-label="Επόμενο">${icon('chevronRight')}</button>
       </div>`;
     main().innerHTML = controls +
       (state.calMode === 'day' ? renderDayView()
@@ -824,6 +844,7 @@
     const pkg = Logic.activePackage(appt.memberId, state.packages, state.appointments);
     if (pkg) {
       await Store.put('appointments', { ...appt, status, packageId: pkg.id });
+      state.popDot = appt.id;
       const rem = Logic.packageRemaining(pkg, [...state.appointments.filter(a => a.id !== id),
         { ...appt, status, packageId: pkg.id }]);
       toast(status === 'present'
