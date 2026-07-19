@@ -93,6 +93,9 @@
     state.members = await Store.getAll('members');
     state.packages = await Store.getAll('packages');
     state.appointments = await Store.getAll('appointments');
+    /* Εφαρμογη αποθηκευμενου ωραριου (αν υπαρχει) πριν απο καθε σχεδιαση */
+    const settings = await Store.getAll('settings');
+    Logic.setSchedule(settings.find(s => s.id === 'schedule'));
   }
 
   /* Επαναφορτωση και επανασχεδιαση μετα απο καθε αλλαγη */
@@ -237,7 +240,7 @@
       return `
         <article class="card state-${stateClass}" data-id="${m.id}">
           <div class="card-head">
-            <h3>${esc(m.name)}</h3>
+            <button class="member-name" data-act="member-history" data-id="${m.id}">${esc(m.name)}</button>
             <div class="card-actions">
               <button class="icon-btn brand" data-act="book-member" data-id="${m.id}" aria-label="Νέο ραντεβού">${icon('plus')}</button>
               <button class="icon-btn" data-act="edit-member" data-id="${m.id}" aria-label="Επεξεργασία">${icon('edit')}</button>
@@ -392,35 +395,45 @@
     return html + '</div>';
   }
 
-  /* Οψη ημερας: ζωνες του προγραμματος με θεσεις (capacity ανα ζωνη) */
+  /* Οψη ημερας: ενιαιο χρονοδιαγραμμα απο τις ζωνες του προγραμματος
+     ΚΑΙ τις εξτρα ωρες, ταξινομημενες ιεραρχικα κατα ωρα εναρξης. */
   function renderDayView() {
     const date = state.calDate;
-    const slots = Logic.slotsForDate(date);
+    const template = Logic.slotsForDate(date);
     const appts = dayAppointments(date);
     const active = appts.filter(a => a.status !== 'cancelled');
     const cancelled = appts.filter(a => a.status === 'cancelled');
-    const slotStarts = new Set(slots.map(s => s.start));
-    /* Ραντεβου εκτος ζωνων: ενεργα που δεν ξεκινουν σε ωρα ζωνης */
-    const offGrid = active.filter(a => !slotStarts.has(a.start.slice(11, 16)));
+    const templateStarts = new Set(template.map(s => s.start));
+
+    /* Εξτρα ωρες: απο ενεργα ραντεβου εκτος προεπιλεγμενων ζωνων */
+    const customTimes = new Map();
+    for (const a of active) {
+      const t = a.start.slice(11, 16);
+      if (!templateStarts.has(t) && !customTimes.has(t)) customTimes.set(t, a.durationMin);
+    }
+    /* Ενιαια λιστα ζωνων, χρονολογικα (η ιεραρχικη τοποθετηση) */
+    const slots = [
+      ...template.map(s => ({ ...s, custom: false })),
+      ...[...customTimes].map(([s, d]) => ({ start: s, durationMin: d, custom: true }))
+    ].sort((a, b) => a.start.localeCompare(b.start));
 
     let html = weekStripHTML();
     html += `<h2 class="cal-day-title">${dayLabel(date)}</h2>`;
 
     if (!slots.length) {
-      html += `<div class="empty"><p>Χωρίς ζώνες αυτή την ημέρα.</p></div>`;
+      html += emptyState('Χωρίς ζώνες αυτή την ημέρα.', 'Πρόσθεσε ώρα με το κουμπί παρακάτω.');
     }
     for (const slot of slots) {
       /* Ραντεβου της ζωνης: ιδια ωρα εναρξης */
       const seatAppts = active.filter(a => a.start.slice(11, 16) === slot.start);
       const freeSeats = Math.max(0, Logic.SCHEDULE.capacity - seatAppts.length);
-      /* Ειδος μαθηματος της ζωνης απο τις υπαρχουσες κρατησεις.
-         Οι κενες θεσεις κληρονομουν το ιδιο ειδος στη φορμα. */
       const slotTypes = [...new Set(seatAppts.map(a => a.classType || 'pilates'))];
       const slotClass = seatAppts.length ? slotTypes.map(t => Logic.classLabel(t)).join(' / ') : '';
       html += `
-        <section class="slot-card">
+        <section class="slot-card${slot.custom ? ' custom' : ''}">
           <div class="slot-head">
             <span class="slot-time mono">${slot.start} – ${Logic.slotEnd(slot.start, slot.durationMin)}</span>
+            ${slot.custom ? '<span class="class-tag">Έξτρα ώρα</span>' : ''}
             ${slotClass ? `<span class="class-tag ${slotTypes.length === 1 ? slotTypes[0] : ''}">${slotClass}</span>` : ''}
           </div>
           <div class="seats">`;
@@ -442,18 +455,11 @@
       html += '</div></section>';
     }
 
-    /* Ενεργα ραντεβου εκτος προγραμματος ζωνων (π.χ. παλαιοτερα δεδομενα) */
-    if (offGrid.length) {
-      html += `<h2 class="cal-day-title">Εκτός ζωνών</h2>`;
-      for (const a of offGrid) {
-        html += `
-          <button class="seat filled st-${a.status} offgrid" data-act="seat" data-id="${a.id}">
-            <span class="mono">${fmtTime(a.start)}</span>
-            <span class="seat-name">${esc(memberName(a.memberId))}</span>
-            <span class="chip ${a.status}">${statusLabel(a.status)}</span>
-          </button>`;
-      }
-    }
+    /* Προσθηκη μαθηματος σε ωρα εκτος προεπιλογων */
+    html += `
+      <button class="btn ghost add-custom" data-act="book-custom" data-date="${date}">
+        + Ώρα εκτός προγράμματος
+      </button>`;
 
     /* Ακυρωμενα της ημερας, συμπτυγμενα */
     if (cancelled.length) {
@@ -575,8 +581,16 @@
       </div>`);
   }
 
+  /* Κενη κατασταση με το εικαστικο των dots (η υπογραφη της εφαρμογης) */
   function emptyState(title, hint) {
-    return `<div class="empty"><p>${title}</p><p class="sub">${hint}</p></div>`;
+    return `<div class="empty">
+      <svg class="empty-art" viewBox="0 0 120 32" aria-hidden="true">
+        <circle cx="16" cy="16" r="10" fill="var(--brand)" opacity="0.9"/>
+        <circle cx="46" cy="16" r="10" fill="var(--brand)" opacity="0.55"/>
+        <circle cx="76" cy="16" r="10" fill="var(--brand)" opacity="0.25"/>
+        <circle cx="106" cy="16" r="10" fill="none" stroke="var(--brand)" stroke-width="3"/>
+      </svg>
+      <p>${title}</p><p class="sub">${hint}</p></div>`;
   }
 
   /* ---- Φορμες ---- */
@@ -888,6 +902,110 @@
 
   /* ---- Backup: Export / Import ---- */
 
+  /* ---- Ιστορικο συνεδριων μελους (tap στο ονομα) ---- */
+  function memberHistorySheet(m) {
+    const pkgs = state.packages.filter(p => p.memberId === m.id)
+      .sort((a, b) => b.startDate.localeCompare(a.startDate));
+    const upcoming = Logic.sortAppointmentsChrono(
+      state.appointments.filter(a => a.memberId === m.id && a.status === 'scheduled'));
+    let html = `<h2>${esc(m.name)}</h2>`;
+    if (!pkgs.length && !upcoming.length) {
+      html += '<p class="sub">Δεν υπάρχει ιστορικό ακόμα.</p>';
+    }
+    for (const p of pkgs) {
+      const rem = Logic.packageRemaining(p, state.appointments);
+      /* Χρεωμενες συνεδριες του πακετου, χρονολογικα */
+      const consumed = Logic.sortAppointmentsChrono(
+        state.appointments.filter(a => a.packageId === p.id && Logic.consumesSession(a.status)));
+      html += `
+        <div class="hist-pkg">
+          <div class="pkg-line">
+            <strong>${esc(p.tier)} ${p.sessions}</strong>
+            <span class="mono sub">${fmtDate(p.startDate)} – ${fmtDate(p.endDate)}</span>
+            <span class="mono">${p.price} €</span>
+            <span class="badge ${p.paid ? 'paid' : 'unpaid'}">${p.paid ? 'Πληρωμένο' : 'Απλήρωτο'}</span>
+          </div>
+          ${punchDots(p)}
+          ${consumed.map(a => `
+            <div class="hist-row">
+              <span class="mono">${fmtDateTime(a.start)}</span>
+              <span class="sub">${Logic.classLabel(a.classType)}</span>
+              <span class="chip ${a.status}">${statusLabel(a.status)}</span>
+            </div>`).join('')}
+          ${rem > 0 ? `<div class="sub mono">απομένουν ${rem}</div>` : ''}
+        </div>`;
+    }
+    if (upcoming.length) {
+      html += '<h2 class="cal-day-title">Προγραμματισμένα</h2>' + upcoming.map(a => `
+        <div class="hist-row">
+          <span class="mono">${fmtDateTime(a.start)}</span>
+          <span class="sub">${Logic.classLabel(a.classType)}</span>
+        </div>`).join('');
+    }
+    html += '<div class="form-actions"><button class="btn ghost" data-act="close-sheet">Κλείσιμο</button></div>';
+    openSheet(html);
+  }
+
+  /* ---- Ρυθμισεις ωραριου (Φαση 2): επεξεργασια μεσα απο το UI ----
+     Το προχειρο (schedDraft) αποθηκευεται στο store 'settings' μονο στο Save. */
+  let schedDraft = null;
+  let schedDay = 1;   /* επιλεγμενη ημερα: 1 = Δευτερα */
+
+  function scheduleEditorSheet() {
+    /* Βαθυ αντιγραφο του ενεργου προγραμματος για ακινδυνη επεξεργασια */
+    schedDraft = JSON.parse(JSON.stringify({
+      capacity: Logic.SCHEDULE.capacity,
+      weekdays: Logic.SCHEDULE.weekdays
+    }));
+    schedDay = 1;
+    renderScheduleEditor();
+  }
+
+  function renderScheduleEditor() {
+    const names = ['Κυ', 'Δε', 'Τρ', 'Τε', 'Πε', 'Πα', 'Σα'];
+    const order = [1, 2, 3, 4, 5, 6, 0];   /* εμφανιση Δε..Κυ */
+    const slots = (schedDraft.weekdays[schedDay] || []).slice()
+      .sort((a, b) => a.start.localeCompare(b.start));
+    openSheet(`
+      <h2>Ωράριο ζωνών</h2>
+      <label>Θέσεις ανά ζώνη (άτομα ταυτόχρονα)
+        <input id="sched-capacity" type="number" min="1" max="10" value="${schedDraft.capacity}">
+      </label>
+      <div class="sess-grid sched-days">
+        ${order.map(d => `<button type="button" class="sess-btn ${d === schedDay ? 'active' : ''}"
+          data-act="sched-day" data-day="${d}">${names[d]}</button>`).join('')}
+      </div>
+      <div class="sched-slots">
+        ${slots.length ? slots.map(s => `
+          <div class="hist-row">
+            <span class="mono">${s.start} – ${Logic.slotEnd(s.start, s.durationMin)}</span>
+            <span class="sub mono">${s.durationMin}′</span>
+            <button class="icon-btn danger" data-act="sched-del-slot" data-start="${s.start}"
+              aria-label="Αφαίρεση">${icon('trash')}</button>
+          </div>`).join('') : '<p class="sub">Καμία ζώνη αυτή την ημέρα.</p>'}
+      </div>
+      <div class="sched-add">
+        <input id="sched-new-time" type="time" aria-label="Ώρα έναρξης">
+        <input id="sched-new-dur" type="number" min="5" step="5" value="50" aria-label="Διάρκεια (λεπτά)">
+        <button class="btn small primary" data-act="sched-add-slot">Προσθήκη</button>
+      </div>
+      <button class="btn ghost" data-act="sched-copy-all">Αντιγραφή της ημέρας σε όλες</button>
+      <div class="form-actions">
+        <button class="btn ghost" data-act="close-sheet">Άκυρο</button>
+        <button class="btn primary" data-act="sched-save">Αποθήκευση</button>
+      </div>`);
+  }
+
+  /* ---- Εκκαθαριση διαγραμμενων (tombstones) ---- */
+  async function purgeSheet() {
+    const ok = await confirmSheet(
+      'Οριστική εκκαθάριση των διαγραμμένων εγγραφών, τοπικά και στον server; ' +
+      'Για πλήρες αποτέλεσμα, εκτέλεσέ την και στη δεύτερη συσκευή.', 'Εκκαθάριση');
+    if (!ok) return;
+    const n = await Store.purgeDeleted(0);
+    toast(`Εκκαθαρίστηκαν ${n} εγγραφές`);
+  }
+
   function backupSheet() {
     const syncMsg = Store.SYNC.enabled
       ? 'Συγχρονισμός: ενεργός (Supabase).'
@@ -900,6 +1018,8 @@
         <label class="btn ghost file-btn">Import από JSON
           <input type="file" id="import-file" accept="application/json" hidden>
         </label>
+        <button class="btn ghost" data-act="schedule-editor">Ρυθμίσεις ωραρίου</button>
+        <button class="btn ghost" data-act="purge">Εκκαθάριση διαγραμμένων</button>
       </div>`);
     $('#import-file').addEventListener('change', async e => {
       const file = e.target.files[0];
@@ -994,6 +1114,49 @@
       /* -- Ημερολογιο -- */
       case 'seat': seatSheet(state.appointments.find(a => a.id === id)); break;
       case 'book-member': appointmentForm(null, { memberId: id }); break;
+      case 'member-history': memberHistorySheet(state.members.find(m => m.id === id)); break;
+      case 'book-custom':
+        /* Εξτρα ωρα: προσυμπληρωμενη ημερα, ωρα προς επιλογη */
+        appointmentForm(null, { start: `${btn.dataset.date}T12:00` });
+        break;
+      case 'schedule-editor': scheduleEditorSheet(); break;
+      case 'purge': purgeSheet(); break;
+      case 'sched-day': schedDay = parseInt(btn.dataset.day, 10); renderScheduleEditor(); break;
+      case 'sched-del-slot':
+        schedDraft.weekdays[schedDay] = (schedDraft.weekdays[schedDay] || [])
+          .filter(s => s.start !== btn.dataset.start);
+        renderScheduleEditor();
+        break;
+      case 'sched-add-slot': {
+        const t = $('#sched-new-time').value;
+        const dur = parseInt($('#sched-new-dur').value, 10);
+        if (!t || !(dur > 0)) break;
+        /* Αντικατασταση τυχον ιδιας ωρας και ιεραρχικη ταξινομηση */
+        const list = (schedDraft.weekdays[schedDay] || []).filter(s => s.start !== t);
+        list.push({ start: t, durationMin: dur });
+        list.sort((a, b) => a.start.localeCompare(b.start));
+        schedDraft.weekdays[schedDay] = list;
+        renderScheduleEditor();
+        break;
+      }
+      case 'sched-copy-all':
+        for (let d = 0; d <= 6; d++) {
+          schedDraft.weekdays[d] = JSON.parse(JSON.stringify(schedDraft.weekdays[schedDay] || []));
+        }
+        toast('Αντιγράφηκε σε όλες τις ημέρες');
+        break;
+      case 'sched-save': {
+        const existing = (await Store.getAll('settings')).find(s => s.id === 'schedule');
+        const rec = existing
+          ? { ...existing, capacity: schedDraft.capacity, weekdays: schedDraft.weekdays }
+          : Store.newRecord({ id: 'schedule', capacity: schedDraft.capacity, weekdays: schedDraft.weekdays });
+        await Store.put('settings', rec);
+        Logic.setSchedule(rec);
+        closeSheet();
+        toast('Το ωράριο αποθηκεύτηκε');
+        refresh();
+        break;
+      }
       case 'book-slot':
         appointmentForm(null, {
           start: `${btn.dataset.date}T${btn.dataset.time}`,
@@ -1028,6 +1191,12 @@
   /* Αναζητηση μελων: φιλτραρισμα ζωντανα, με διατηρηση του focus
      (η επανασχεδιαση αντικαθιστα το input, οποτε το ξαναεστιαζουμε) */
   document.addEventListener('input', e => {
+    /* Χωρητικοτητα στον editor ωραριου: αμεση ενημερωση του προχειρου */
+    if (e.target.id === 'sched-capacity') {
+      const v = parseInt(e.target.value, 10);
+      if (v >= 1) schedDraft.capacity = v;
+      return;
+    }
     if (e.target.id !== 'member-search') return;
     state.memberQuery = e.target.value;
     renderMembers();
@@ -1074,6 +1243,8 @@
       const pad = n => String(n).padStart(2, '0');
       setSyncStatus(`Συγχρ. ${pad(d.getHours())}:${pad(d.getMinutes())}`, 'ok');
       await refresh();
+      /* Σκουπα tombstones ανω των 30 ημερων (τοπικα + server) */
+      Store.purgeDeleted(30);
     } else {
       /* Αποτυχια (π.χ. offline): η εφαρμογη συνεχιζει με τα τοπικα δεδομενα */
       setSyncStatus('Χωρίς σύνδεση', 'off');
