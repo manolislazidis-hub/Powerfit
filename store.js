@@ -10,15 +10,16 @@ const Store = (() => {
      Για ενεργοποιηση: enabled = true και συμπληρωση url + anonKey.
      Δες README.md για τη δημιουργια του project και το SQL των πινακων. */
   const SYNC = {
-    enabled: true,
-    url: 'https://pywbgbzkofoofbjeruac.supabase.co',
-    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB5d2JnYnprb2Zvb2ZiamVydWFjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzNjA4NzksImV4cCI6MjA5OTkzNjg3OX0.4Fmsux3mFvWvUou7u8LO45ej3LSojRSfF6GEqtVgeRk'
+    enabled: false,
+    url: 'https://YOUR-PROJECT.supabase.co',   /* placeholder */
+    anonKey: 'YOUR-ANON-KEY'                   /* placeholder */
   };
 
   const DB_NAME = 'powerfit';
-  const DB_VERSION = 1;
+  /* v2: προστεθηκε το store 'settings' (ωραριο ζωνων) */
+  const DB_VERSION = 2;
   /* Ονοματα object stores = ονοματα πινακων στο Supabase */
-  const STORES = ['members', 'packages', 'appointments'];
+  const STORES = ['members', 'packages', 'appointments', 'settings'];
 
   let db = null;
 
@@ -190,9 +191,43 @@ const Store = (() => {
     }
   }
 
+  /* Απομακρυσμενη ΟΡΙΣΤΙΚΗ διαγραφη εγγραφης (χρηση μονο απο την εκκαθαριση) */
+  async function remoteDelete(storeName, id) {
+    if (!SYNC.enabled) return;
+    try {
+      await fetch(`${SYNC.url}/rest/v1/${storeName}?id=eq.${id}`, {
+        method: 'DELETE',
+        headers: syncHeaders()
+      });
+    } catch (e) {
+      console.warn('Remote delete failed:', e);
+    }
+  }
+
+  /* Εκκαθαριση tombstones: οριστικη διαγραφη (τοπικα + server) των εγγραφων
+     με deleted=true που ειναι παλαιοτερες απο minAgeDays ημερες.
+     minAgeDays=0 -> ολες. Επιστρεφει ποσες εκκαθαριστηκαν.
+     Καλειται και αυτοματα (30 ημερες) μετα απο καθε sync, ωστε αν μια συσκευη
+     ξανα-ανεβασει tombstone, να σκουπιστει τελικα και απο τις δυο. */
+  async function purgeDeleted(minAgeDays) {
+    const cutoff = Date.now() - minAgeDays * 86400000;
+    let count = 0;
+    for (const name of STORES) {
+      const all = await getAllRaw(name);
+      for (const rec of all.filter(r => r.deleted && r.updatedAt <= cutoff)) {
+        const tx = db.transaction(name, 'readwrite');
+        await promisify(tx.objectStore(name).delete(rec.id));
+        remoteDelete(name, rec.id); /* fire-and-forget */
+        count++;
+      }
+    }
+    return count;
+  }
+
   return {
     SYNC,
     init,
+    purgeDeleted,
     getAll,
     get,
     put,
