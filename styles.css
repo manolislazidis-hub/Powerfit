@@ -3,6 +3,7 @@
    Avenir Next για τιτλους (iOS), system stack για κειμενο, SF Mono για δεδομενα. */
 
 :root {
+  color-scheme: only light;   /* η εφαρμογη ειναι light: οχι auto-dark απο τον browser */
   --paper: #F7F6F2;        /* φοντο */
   --surface: #FFFFFF;      /* καρτες, sheets */
   --ink: #1D1C1A;          /* κειμενο */
