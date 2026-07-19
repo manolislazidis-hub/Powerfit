@@ -743,3 +743,55 @@ input:focus, select:focus, textarea:focus, .btn:focus-visible, .tab:focus-visibl
   from { transform: scale(0.2); }
   to   { transform: scale(1); }
 }
+
+/* ---- Empty state εικαστικο ---- */
+
+.empty-art { width: 132px; display: block; margin: 0 auto 4px; }
+
+/* ---- Ονομα μελους ως κουμπι ιστορικου ---- */
+
+.member-name {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--ink);
+  background: none;
+  border: none;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* ---- Εξτρα ωρες στην οψη ημερας ---- */
+
+.slot-card.custom { border-style: dashed; }
+.add-custom { width: 100%; }
+
+/* ---- Ιστορικο μελους ---- */
+
+.hist-pkg {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: grid;
+  gap: 6px;
+}
+
+.hist-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 14px;
+}
+
+/* ---- Editor ωραριου ---- */
+
+.sched-days { grid-template-columns: repeat(7, 1fr); }
+.sched-slots { display: grid; gap: 6px; }
+.sched-add {
+  display: grid;
+  grid-template-columns: 1fr 84px auto;
+  gap: 8px;
+  align-items: center;
+}
