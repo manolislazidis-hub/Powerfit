@@ -126,21 +126,107 @@ const Store = (() => {
     }
   }
 
+  /* ---- Ταυτοποιηση (Supabase Auth) ----
+     Η βαση προστατευεται με RLS: προσβαση εχουν ΜΟΝΟ συνδεδεμενοι χρηστες.
+     Η συνεδρια (tokens) αποθηκευεται τοπικα ωστε το login να γινεται
+     μια φορα ανα συσκευη. Το anon key μονο του δεν ανοιγει πια δεδομενα. */
+
+  const SESSION_KEY = 'powerfit-session';
+  let session = null;
+
+  /* Φορτωμα αποθηκευμενης συνεδριας στην εκκινηση */
+  function authInit() {
+    try {
+      session = JSON.parse(localStorage.getItem(SESSION_KEY));
+    } catch {
+      session = null;
+    }
+  }
+
+  function saveSession(s) {
+    session = s;
+    if (s) localStorage.setItem(SESSION_KEY, JSON.stringify(s));
+    else localStorage.removeItem(SESSION_KEY);
+  }
+
+  function hasSession() {
+    return !!session;
+  }
+
+  /* Συνδεση με email/κωδικο. Ριχνει Error με μηνυμα σε αποτυχια. */
+  async function signIn(email, password) {
+    const res = await fetch(`${SYNC.url}/auth/v1/token?grant_type=password`, {
+      method: 'POST',
+      headers: { 'apikey': SYNC.anonKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error_description || data.msg || 'Αποτυχία σύνδεσης');
+    }
+    saveSession({
+      access_token: data.access_token,
+      refresh_token: data.refresh_token,
+      /* Ανανεωση 60s πριν την πραγματικη ληξη */
+      expires_at: Date.now() + (data.expires_in - 60) * 1000
+    });
+  }
+
+  /* Ανανεωση ληγμενης συνεδριας με το refresh token */
+  async function refreshSession() {
+    if (!session || !session.refresh_token) return false;
+    try {
+      const res = await fetch(`${SYNC.url}/auth/v1/token?grant_type=refresh_token`, {
+        method: 'POST',
+        headers: { 'apikey': SYNC.anonKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: session.refresh_token })
+      });
+      if (!res.ok) {
+        /* Το refresh token απορριφθηκε: η συνεδρια ειναι αχρηστη */
+        saveSession(null);
+        return false;
+      }
+      const data = await res.json();
+      saveSession({
+        access_token: data.access_token,
+        refresh_token: data.refresh_token,
+        expires_at: Date.now() + (data.expires_in - 60) * 1000
+      });
+      return true;
+    } catch {
+      /* Offline: κραταμε την υπαρχουσα συνεδρια, το sync απλως θα αποτυχει */
+      return true;
+    }
+  }
+
+  /* Εξασφαλιζει φρεσκο access token πριν απο αιτηματα δεδομενων */
+  async function ensureFreshSession() {
+    if (!session) return false;
+    if (Date.now() < session.expires_at) return true;
+    return refreshSession();
+  }
+
+  function signOut() {
+    saveSession(null);
+  }
+
   /* ---- Συγχρονισμος με Supabase (REST API) ---- */
 
-  /* Κοινες κεφαλιδες για ολα τα αιτηματα */
+  /* Κεφαλιδες δεδομενων: το Bearer ειναι πλεον το token του ΧΡΗΣΤΗ,
+     οχι το anon key - ετσι περνανε τα RLS policies */
   function syncHeaders() {
     return {
       'apikey': SYNC.anonKey,
-      'Authorization': 'Bearer ' + SYNC.anonKey,
+      'Authorization': 'Bearer ' + (session ? session.access_token : SYNC.anonKey),
       'Content-Type': 'application/json'
     };
   }
 
   /* Push μιας εγγραφης (upsert κατα id). Σιωπηλη αποτυχια αν δεν υπαρχει δικτυο. */
   async function pushRecord(storeName, record) {
-    if (!SYNC.enabled) return;
+    if (!SYNC.enabled || !session) return;
     try {
+      await ensureFreshSession();
       await fetch(`${SYNC.url}/rest/v1/${storeName}?on_conflict=id`, {
         method: 'POST',
         headers: { ...syncHeaders(), 'Prefer': 'resolution=merge-duplicates' },
@@ -162,6 +248,8 @@ const Store = (() => {
      Επιστρεφει true αν ολοκληρωθηκε, false αν απετυχε (π.χ. offline). */
   async function syncPull() {
     if (!SYNC.enabled) return false;
+    /* Χωρις εγκυρη συνεδρια δεν γινεται συγχρονισμος */
+    if (!(await ensureFreshSession())) return false;
     try {
       for (const name of STORES) {
         const res = await fetch(`${SYNC.url}/rest/v1/${name}?select=*`, {
@@ -193,8 +281,9 @@ const Store = (() => {
 
   /* Απομακρυσμενη ΟΡΙΣΤΙΚΗ διαγραφη εγγραφης (χρηση μονο απο την εκκαθαριση) */
   async function remoteDelete(storeName, id) {
-    if (!SYNC.enabled) return;
+    if (!SYNC.enabled || !session) return;
     try {
+      await ensureFreshSession();
       await fetch(`${SYNC.url}/rest/v1/${storeName}?id=eq.${id}`, {
         method: 'DELETE',
         headers: syncHeaders()
@@ -227,6 +316,10 @@ const Store = (() => {
   return {
     SYNC,
     init,
+    authInit,
+    hasSession,
+    signIn,
+    signOut,
     purgeDeleted,
     getAll,
     get,
