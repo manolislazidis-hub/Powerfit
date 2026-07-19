@@ -610,7 +610,6 @@
       <form id="f-member">
         <label>Όνομα *<input name="name" required value="${esc(existing?.name)}"></label>
         <label>Τηλέφωνο<input name="phone" type="tel" value="${esc(existing?.phone)}"></label>
-        <label>Email<input name="email" type="email" value="${esc(existing?.email)}"></label>
         <label>Σημειώσεις<textarea name="notes" rows="2">${esc(existing?.notes)}</textarea></label>
         <p class="form-error" hidden></p>
         <div class="form-actions">
@@ -624,7 +623,7 @@
       const fields = {
         name: f.get('name').trim(),
         phone: f.get('phone').trim(),
-        email: f.get('email').trim(),
+        email: '',   /* το email δεν συλλεγεται πια (ελαχιστοποιηση δεδομενων) */
         notes: f.get('notes').trim()
       };
       if (!fields.name) { showFormError('Το όνομα είναι υποχρεωτικό.'); return; }
@@ -1020,6 +1019,7 @@
         </label>
         <button class="btn ghost" data-act="schedule-editor">Ρυθμίσεις ωραρίου</button>
         <button class="btn ghost" data-act="purge">Εκκαθάριση διαγραμμένων</button>
+        <button class="btn ghost danger-text" data-act="logout">Αποσύνδεση</button>
       </div>`);
     $('#import-file').addEventListener('change', async e => {
       const file = e.target.files[0];
@@ -1120,6 +1120,12 @@
         appointmentForm(null, { start: `${btn.dataset.date}T12:00` });
         break;
       case 'schedule-editor': scheduleEditorSheet(); break;
+      case 'logout':
+        if (await confirmSheet('Αποσύνδεση από αυτή τη συσκευή; Τα τοπικά δεδομένα παραμένουν.', 'Αποσύνδεση')) {
+          Store.signOut();
+          location.reload();
+        }
+        break;
       case 'purge': purgeSheet(); break;
       case 'sched-day': schedDay = parseInt(btn.dataset.day, 10); renderScheduleEditor(); break;
       case 'sched-del-slot':
@@ -1313,14 +1319,48 @@
   }
   window.addEventListener('resize', setTopbarHeight);
 
+  /* ---- Οθονη συνδεσης ---- */
+
+  function showLogin() {
+    $('#login-screen').hidden = false;
+    $('#f-login').addEventListener('submit', async e => {
+      e.preventDefault();
+      const f = new FormData(e.target);
+      const err = $('#login-error');
+      err.hidden = true;
+      try {
+        await Store.signIn(f.get('email').trim(), f.get('password'));
+        $('#login-screen').hidden = true;
+        startApp();
+      } catch (ex) {
+        err.textContent = 'Αποτυχία σύνδεσης. Έλεγξε email και κωδικό.';
+        err.hidden = false;
+      }
+    });
+  }
+
   /* ---- Εκκινηση ---- */
-  async function boot() {
-    await Store.init();
-    setTopbarHeight();
+
+  /* Κυριως εκκινηση μετα την ταυτοποιηση */
+  async function startApp() {
     /* Πρωτα τα τοπικα δεδομενα στην οθονη, μετα συγχρονισμος στο παρασκηνιο */
     await refresh();
     registerServiceWorker();
     syncNow(true);
+  }
+
+  async function boot() {
+    await Store.init();
+    Store.authInit();
+    setTopbarHeight();
+    /* Χωρις αποθηκευμενη συνεδρια: οθονη login (μια φορα ανα συσκευη).
+       Με συνεδρια (εστω ληγμενη offline): η εφαρμογη ανοιγει κανονικα
+       και η ανανεωση του token γινεται στο πρωτο online sync. */
+    if (Store.SYNC.enabled && !Store.hasSession()) {
+      showLogin();
+      return;
+    }
+    startApp();
   }
 
   boot();
