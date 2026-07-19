@@ -9,6 +9,8 @@
   <!-- PWA -->
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#23604F">
+  <!-- Ρητη δηλωση light: αποτρεπει το Auto Dark του browser να αντιστρεψει τα χρωματα -->
+  <meta name="color-scheme" content="only light">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Power Fit">
@@ -27,7 +29,10 @@
 
   <!-- Κεφαλιδα: brand στο κεντρο, ενδειξη sync αριστερα, backup δεξια -->
   <header class="topbar">
-    <span id="sync-status" class="sync-status mono" hidden></span>
+    <!-- Σταθερο κελι grid: το span μπορει να ειναι hidden χωρις να μετακινειται το logo -->
+    <div class="topbar-side">
+      <span id="sync-status" class="sync-status mono" hidden></span>
+    </div>
     <div class="brand-wrap">
       <img class="brand-logo" src="icons/logo.png" alt="Power Fit" data-act="balance">
       <h1 id="view-title">Μέλη</h1>
@@ -60,6 +65,17 @@
 
   <!-- Toasts: συντομες επιβεβαιωσεις ενεργειων -->
   <div id="toasts"></div>
+
+  <!-- Οθονη συνδεσης: εμφανιζεται μονο οταν δεν υπαρχει αποθηκευμενη συνεδρια -->
+  <div id="login-screen" hidden>
+    <img class="login-logo" src="icons/logo.png" alt="Power Fit">
+    <form id="f-login">
+      <label>Email<input name="email" type="email" autocomplete="username" required></label>
+      <label>Κωδικός<input name="password" type="password" autocomplete="current-password" required></label>
+      <p class="form-error" id="login-error" hidden></p>
+      <button type="submit" class="btn primary">Σύνδεση</button>
+    </form>
+  </div>
 
   <!-- Bottom sheet για φορμες -->
   <div id="sheet-overlay">
